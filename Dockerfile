@@ -1,26 +1,28 @@
-# Dockerfile for Render (Updated with all fixes)
+# Dockerfile (Includes all previous fixes: Rust/Cargo, and new fix for path/case)
 FROM python:3.11-slim
 
 # System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice tesseract-ocr ghostscript poppler-utils curl \
-    # FIX 1 (Rust/Cargo): Add system build tools for pydantic-core and others
     build-essential rustc cargo \
     && rm -rf /var/lib/apt/lists/*
 
-# Optional: add more Tesseract languages (uncomment if needed)
-# RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr-hin tesseract-ocr-mar
-
 WORKDIR /app
-COPY . /app
+
+# FIX 1: Copy requirements file separately using the correct name (assuming you fixed the name to lowercase)
+# Ye ensure karta hai ki file mil jaaye aur caching sahi ho
+COPY backend/requirements.txt /app/backend/
 
 # Python deps
-WORKDIR /app/backend # <--- CWD is now /app/backend
+WORKDIR /app/backend 
 RUN python -m venv /opt/venv && . /opt/venv/bin/activate && \
-    # FIX 2 (Path): This command now correctly finds the file at /app/backend/requirements.txt
     pip install --upgrade pip && pip install -r requirements.txt
+    
+# Copy the rest of the application code
+COPY . /app/
+WORKDIR /app
 
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Render provides $PORT
-CMD ["bash", "-lc", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["bash", "-lc", "uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
