@@ -1,31 +1,25 @@
-# Dockerfile — rust-enabled build for pydantic-core
+# Dockerfile for Render
 FROM python:3.11-slim
 
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libreoffice tesseract-ocr ghostscript poppler-utils curl \
+    # FIX: Add Rust toolchain (rustc, cargo) and build-essential for pydantic-core/other compilations
+    build-essential rustc cargo \ 
+    && rm -rf /var/lib/apt/lists/*
+
+# Optional: add more Tesseract languages (uncomment if needed)
+# RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr-hin tesseract-ocr-mar
+
 WORKDIR /app
+COPY . /app
 
-# Install apt deps needed to build some python packages + curl for rustup
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends build-essential curl ca-certificates gcc libssl-dev && \
-    rm -rf /var/lib/apt/lists/*
+# Python deps
+WORKDIR /app/backend
+RUN python -m venv /opt/venv && . /opt/venv/bin/activate && \
+    pip install --upgrade pip && pip install -r requirements.txt
 
-# Install rustup (non-interactive) and set PATH for this layer
-ENV RUSTUP_HOME=/rustup \
-    CARGO_HOME=/cargo \
-    PATH=/cargo/bin:/root/.cargo/bin:$PATH
+ENV PATH="/opt/venv/bin:$PATH"
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-    rustup default stable
-
-# Copy requirements and install python deps (now rust available)
-COPY backend/requirements.txt ./backend/requirements.txt
-RUN python -m pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r backend/requirements.txt
-
-# Copy rest of project
-COPY . .
-
-# create runtime dirs
-RUN mkdir -p /app/uploads /app/merged && chmod -R 777 /app/uploads /app/merged
-
-EXPOSE 8000
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Render provides $PORT
+CMD ["bash", "-lc", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]
